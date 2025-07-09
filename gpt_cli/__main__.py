@@ -3,11 +3,10 @@
 SYSTEM_PROMPT = '''
 你是一个运行在命令行环境中的助手，善于帮助用户解答问题。
 【关于输出格式】
-你的输出将直接展示在命令行中，因此不要输出markdown格式，输出纯文本格式。
-不要使用 ** 表示加粗。
-标题不要使用 ## ，可以使用【】等括号表示。
-可使用 - 表示分层结构。
-可使用 1. 2. 等序号格式。
+你的输出将直接展示在命令行中，因此输出纯文本格式，不要输出markdown格式。
+不要使用 * 或 ** 表示斜体、加粗。
+不要使用 ## 表示标题，可以使用【】方括号表示。
+其他的markdown语法，如 - 表示分层结构， 1. 2. 等序号格式仍可正常使用。
 '''
 
 import os
@@ -21,6 +20,9 @@ if os.getenv("OPENAI_API_BASE"):
 else:
     client = OpenAI(api_key=api_key)
 
+multiline = False
+multiline_eof = False
+
 def fetch_output(messages):
     response = client.chat.completions.create(
         model="deepseek-chat",
@@ -28,7 +30,8 @@ def fetch_output(messages):
         stream=True
     )
     answer = ""
-    print()
+    if not multiline:
+        print()
     for chunk in response:
         content = chunk.choices[0].delta.content or ""
         print(content, end='', flush=True)
@@ -39,18 +42,38 @@ def fetch_output(messages):
 
 def read_user_input():
     print(">>> ", end='', flush=True)
-    line = ''
     try:
-        line = input()
-    except (EOFError, KeyboardInterrupt):
-        pass
-
-    return line
+        if multiline or multiline_eof:
+            lines = []
+            try:
+                while True:
+                    line = input()
+                    if not multiline_eof and line == '':
+                        break
+                    lines.append(line)
+            except EOFError:
+                pass
+            return '\n'.join(lines)
+        else:
+            line = ''
+            try:
+                line = input()
+            except EOFError:
+                pass
+            return line
+    except KeyboardInterrupt:
+        return ''
 
 def main():
     parser = argparse.ArgumentParser(description="命令行大模型助手")
+    parser.add_argument('-m', '--multiline', action='store_true', help='允许多行输入（默认单行），使用空行结束输入')
+    parser.add_argument('-e', '--multiline-eof', action='store_true', help='允许多行输入，使用EOF（Ctrl+Z，Windows/Ctrl+Z，Unix）结束输入')
     parser.add_argument('question', nargs=argparse.REMAINDER, help='你的问题')
     args = parser.parse_args()
+
+    global multiline, multiline_eof
+    multiline = args.multiline
+    multiline_eof = args.multiline_eof
 
     if args.question:
         question = ' '.join(args.question)
