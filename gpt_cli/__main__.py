@@ -22,10 +22,11 @@ else:
 
 multiline = False
 multiline_eof = False
+model_name = "deepseek-chat"
 
 def fetch_output(messages):
     response = client.chat.completions.create(
-        model="deepseek-chat",
+        model=model_name,
         messages=messages,
         stream=True
     )
@@ -68,12 +69,14 @@ def main():
     parser = argparse.ArgumentParser(description="命令行大模型助手")
     parser.add_argument('-m', '--multiline', action='store_true', help='允许多行输入（默认单行），使用空行结束输入')
     parser.add_argument('-e', '--multiline-eof', action='store_true', help='允许多行输入，使用EOF（Ctrl+Z，Windows/Ctrl+Z，Unix）结束输入')
+    parser.add_argument('--model', default='deepseek-chat', help='使用的模型名称')
     parser.add_argument('question', nargs=argparse.REMAINDER, help='你的问题')
     args = parser.parse_args()
 
-    global multiline, multiline_eof
+    global multiline, multiline_eof, model_name
     multiline = args.multiline
     multiline_eof = args.multiline_eof
+    model_name = args.model
 
     if args.question:
         question = ' '.join(args.question)
@@ -92,6 +95,10 @@ def main():
             answer = fetch_output(messages)
         except KeyboardInterrupt:
             break
+
+        if args.question:
+            break # single turn
+        
         messages.append({"role": "assistant", "content": answer})
         followup = read_user_input()
         if not followup.strip():
